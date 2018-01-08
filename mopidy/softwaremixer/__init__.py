@@ -18,6 +18,8 @@ class Extension(ext.Extension):
 
     def get_config_schema(self):
         schema = super(Extension, self).get_config_schema()
+        schema['volume_scale'] = config.String(
+            choices=('linear', 'cubic', 'log'))
         return schema
 
     def setup(self, registry):

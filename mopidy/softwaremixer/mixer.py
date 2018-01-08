@@ -2,6 +2,8 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 
+import math
+
 import pykka
 
 from mopidy import mixer
@@ -17,9 +19,13 @@ class SoftwareMixer(pykka.ThreadingActor, mixer.Mixer):
     def __init__(self, config):
         super(SoftwareMixer, self).__init__(config)
 
+        self.config = config
+        self.volume_scale = self.config['softwaremixer']['volume_scale']
+
         self._audio_mixer = None
         self._initial_volume = None
         self._initial_mute = None
+        self._volume = None
 
     def setup(self, mixer_ref):
         self._audio_mixer = mixer_ref
@@ -39,13 +45,17 @@ class SoftwareMixer(pykka.ThreadingActor, mixer.Mixer):
     def get_volume(self):
         if self._audio_mixer is None:
             return None
-        return self._audio_mixer.get_volume().get()
+        return self._volume
+
+    def trigger_volume_changed(self, volume):
+        super(SoftwareMixer, self).trigger_volume_changed(self._volume)
 
     def set_volume(self, volume):
         if self._audio_mixer is None:
             self._initial_volume = volume
             return False
-        self._audio_mixer.set_volume(volume)
+        self._volume = volume
+        self._audio_mixer.set_volume(self._mixer_to_volume(volume))
         return True
 
     def get_mute(self):
@@ -59,3 +69,11 @@ class SoftwareMixer(pykka.ThreadingActor, mixer.Mixer):
             return False
         self._audio_mixer.set_mute(mute)
         return True
+
+    def _mixer_to_volume(self, mixer_volume):
+        volume = mixer_volume
+        if self.volume_scale == 'cubic':
+            volume = volume * volume / 100.0
+        elif self.volume_scale == 'log':
+            volume = math.pow(10, volume / 50.0)
+        return int(volume)
